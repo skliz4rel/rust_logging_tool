@@ -1,0 +1,50 @@
+use chrono::Utc;
+use mongodb::bson::{DateTime, oid::ObjectId};
+use serde::{Deserialize, Serialize};
+use std::{alloc::System, time::SystemTime};
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
+pub enum LogLevel {
+    INFO,
+    ERROR,
+    DEBUG,
+    WARN,
+    TRACE,
+    OTHER,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Log {
+    pub _id: ObjectId,
+    pub my_service_id: ObjectId,
+    pub level: LogLevel,
+    pub line_content: String,
+    pub created_at: DateTime,
+}
+
+impl TryFrom<LogRequest> for Log {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(item: LogRequest) -> Result<Self, Self::Error> {
+        let chono_datetime: SystemTime = chrono::DateTime::parse_from_rfc3339(&item.created_at)
+            .map_err(|err| format!("Format to parse start_time: {} ", err))?
+            .with_timezone(&Utc)
+            .into();
+
+        Ok(Self {
+            _id: ObjectId::new(),
+            my_service_id: ObjectId::parse_str(&item.my_service_id).expect("Failed to parse owner"),
+            level: item.level,
+            line_content: item.line_content,
+            created_at: DateTime::from(chono_datetime),
+        })
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LogRequest {
+    pub level: LogLevel,
+    pub my_service_id: String,
+    pub line_content: String,
+    pub created_at: String,
+}

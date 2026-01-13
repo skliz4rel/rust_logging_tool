@@ -1,0 +1,10 @@
+[workspace]
+workspace.resolver = "1"
+
+members = [
+    "commons",
+   "producer-lib",
+   "consumer-lib",
+ "rust-tooling-api", 
+ "rust-log-collector"
+ ]

@@ -1,0 +1,4 @@
+cargo run -p rust-tooling-api
+
+cargo test -p commons
+
