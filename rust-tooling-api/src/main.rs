@@ -7,12 +7,19 @@ mod routes;
 mod services;
 mod utils;
 
+use commons::details::{self, Details};
+
 use crate::models::{log_model::*, my_service_model::*, response_model::*};
 use crate::routes::{health_check::*, log_routes::*, myservice_routes::*};
 use crate::services::db::Database;
 
 #[get("/")]
 async fn hello() -> impl Responder {
+    let d: Details = Details {
+        name: "jide".to_string(),
+        age: 3,
+    };
+
     HttpResponse::Ok().body("Hello YouTube!")
 }
 
@@ -25,6 +32,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(db_data.clone()) //register or inject the database obj
             .service(hello)
+            .service(health_check)
             .service(create_log)
             .service(get_logs_byservices)
             .service(get_logs_services_by_date_range)

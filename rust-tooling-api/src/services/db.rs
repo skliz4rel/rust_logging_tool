@@ -3,7 +3,7 @@ use crate::utils::date_helper::Converter;
 
 use actix_web::Error;
 use chrono::Utc;
-use futures_util::stream::StreamExt;
+use futures::stream::TryStreamExt;
 
 use mongodb::Collection;
 use mongodb::bson::from_document;
@@ -94,8 +94,20 @@ impl Database {
     pub async fn get_services(&self) -> Result<Vec<MyService>, Error> {
         // No filter = return all documents (be careful with large collections!)
 
-        let mut cursor: Cursor<MyService> = self.myservice.find(None).await?;
-        let services: Vec<MyService> = cursor.try_collect().await?; // or iterate with try_next
+        let filter = doc! {};
+
+        let mut cursor: Cursor<MyService> = self
+            .myservice
+            .find(filter)
+            .await
+            .ok()
+            .expect("error reading through the services");
+
+        let services: Vec<MyService> = cursor
+            .try_collect()
+            .await
+            .ok()
+            .expect("error displaying the list of services"); // or iterate with try_next
 
         Ok(services)
     }
@@ -136,14 +148,25 @@ impl Database {
         let serviceid = ObjectId::from_str(service_id).expect("Failed to parse service_id");
 
         let filter = doc! { "my_service_id": serviceid };
-        let cursor: Cursor<Log> = self.log.find(filter).await?;
-        let items: Vec<Log> = cursor.try_collect().await?;
+        let cursor: Cursor<Log> = self
+            .log
+            .find(filter)
+            .await
+            .ok()
+            .expect("error creating cusor to view documents");
+
+        let items: Vec<Log> = cursor
+            .try_collect()
+            .await
+            .ok()
+            .expect("error reading through te logs");
+
         Ok(items)
     }
 
     pub async fn get_logs_service_by_date_range(
         &self,
-        service_id: String,
+        service_id: &String,
         start: DateTime,
         end: DateTime,
     ) -> Result<Vec<MyService>, Error> {
@@ -159,7 +182,12 @@ impl Database {
             .ok()
             .expect("error getting logs by id and date range");
 
-        let services: Vec<MyService> = cursor.try_collect().await?;
+        let services: Vec<MyService> = cursor
+            .try_collect()
+            .await
+            .ok()
+            .expect("error reading through the service list");
+
         Ok(services)
     }
 

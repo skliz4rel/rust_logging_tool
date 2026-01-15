@@ -43,12 +43,10 @@ pub async fn get_logs_services_by_date_range(
     db: Data<Database>,
     path: Path<(String, String, String)>,
 ) -> HttpResponse {
-    let service_id: String = path.into_inner().0;
-    let start_date: String = path.into_inner().1;
-    let end_date: String = path.into_inner().2;
+    let (service_id, start_date, end_date) = &path.into_inner();
 
-    let start_date: DateTime = Converter::convert_str_datetime(start_date);
-    let end_date: DateTime = Converter::convert_str_datetime(end_date);
+    let start_date: DateTime = Converter::convert_str_datetime(&start_date);
+    let end_date: DateTime = Converter::convert_str_datetime(&end_date);
 
     match db
         .get_logs_service_by_date_range(service_id, start_date, end_date)

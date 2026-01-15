@@ -8,6 +8,7 @@ actix-web = "4.12.1"
 chrono = "0.4.42"
 commons = { path = "../commons"}
 consumer-lib = { path = "../consumer-lib"}
-futures-util = "0.3.31"
+futures = "0.3" 
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 mongodb = "3.4.1"
 serde = "1.0.228"
