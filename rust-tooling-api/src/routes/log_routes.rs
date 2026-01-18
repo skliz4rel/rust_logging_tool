@@ -1,13 +1,13 @@
-use crate::{
-    models::log_model::{Log, LogRequest},
-    services::db::Database,
-    utils::date_helper::Converter,
-};
 use actix_web::{
     Error, HttpResponse,
     web::{Data, Json, Path},
 };
 use actix_web::{get, post};
+use dal_layer::{
+    models::log_model::{Log, LogRequest},
+    repository::db::Database,
+    utils::date_helper::Converter,
+};
 use mongodb::bson::DateTime;
 
 #[post("/log")]
@@ -24,7 +24,7 @@ pub async fn create_log(db: Data<Database>, request: Json<LogRequest>) -> HttpRe
         )
         .await
     {
-        Ok(dog) => HttpResponse::Ok().json(dog),
+        Ok(log) => HttpResponse::Ok().json(log),
         Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }

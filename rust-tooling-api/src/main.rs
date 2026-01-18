@@ -2,16 +2,13 @@ use actix_web::web::Data;
 use actix_web::{App, HttpResponse, HttpServer, Responder, get};
 
 //You must register all your modules for it to be visible within your project
-mod models;
 mod routes;
-mod services;
-mod utils;
 
-use commons::details::{self, Details};
+use dal_layer::models::details::Details;
 
-use crate::models::{log_model::*, my_service_model::*, response_model::*};
 use crate::routes::{health_check::*, log_routes::*, myservice_routes::*};
-use crate::services::db::Database;
+use dal_layer::models::{log_model::*, my_service_model::*, response_model::*};
+use dal_layer::repository::db::Database;
 
 #[get("/")]
 async fn hello() -> impl Responder {

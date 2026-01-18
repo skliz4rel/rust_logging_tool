@@ -2,9 +2,7 @@
 workspace.resolver = "1"
 
 members = [
-    "commons",
-   "producer-lib",
-   "consumer-lib",
+ "dal-layer",
  "rust-tooling-api", 
  "rust-log-collector"
- ]
+]

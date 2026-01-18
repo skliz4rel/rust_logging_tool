@@ -132,7 +132,7 @@ impl Database {
 
         // Ordered=false means MongoDB will continue inserting even if one fails (e.g., duplicate key)
         let options = mongodb::options::InsertManyOptions::builder()
-            .ordered(false)
+            .ordered(true)
             .build();
 
         self.log

@@ -32,7 +32,24 @@ impl TryFrom<MyServiceView> for MyService {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MyServiceView {
+    pub service_id: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub onboarded_datetime: Option<String>,
+}
+
+impl MyServiceView {
+    pub fn from_bulk(
+        items: Vec<MyService>,
+    ) -> Result<Vec<MyServiceView>, Box<dyn std::error::Error>> {
+        Ok(items
+            .into_iter()
+            .map(|s| MyServiceView {
+                service_id: Some(s._id.to_string().clone()),
+                name: s.name,
+                description: s.description,
+                onboarded_datetime: Some(s.onboarded_datetime.to_string()),
+            })
+            .collect())
+    }
 }
