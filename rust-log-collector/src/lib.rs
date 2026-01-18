@@ -1,41 +1,59 @@
-use chrono::Local;
+use chrono::Utc;
 use serde::Deserialize;
 use std::error::Error;
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::PathBuf;
 
+use dal_layer::models::log_model::{Log, LogLevel, LogRequest};
+use dal_layer::repository::db::Database;
+
 #[derive(Debug)]
-pub struct Logstore {
+pub struct ALogFile {
     pub application_name: String,
-    pub logs: Vec<Log>,
+    pub logs_in_file: Vec<LogRequest>,
 }
 
-impl Logstore {
-    pub fn store_in_db(&mut self) {
-
+impl ALogFile {
+    pub async fn store_in_db(&mut self) {
         //store the logs in the database at this point
         // self.logs
+
+        let db = Database::init().await;
+
+        let logsResult = Log::from_bulk(self.logs_in_file.clone());
+
+        match logsResult {
+            Ok(logs) => {
+                db.insert_logs_bulk(logs).await;
+            }
+            Err(error) => {
+                println!(
+                    "There was an error inserting the logs from file {:?}",
+                    error
+                );
+            }
+        }
     }
 
-    ///read the database
-    pub fn read_file_logs(&mut self, filepath: &PathBuf) {
+    pub fn read_file_logs(&mut self, service_id: &str, filepath: &PathBuf) {
         let result = fs::read_to_string(filepath);
 
         match result {
             Ok(content) => {
                 let lines = {
-                    let mut v: Vec<Log> = content
+                    let mut v: Vec<LogRequest> = content
                         .lines()
-                        .map(|l| Log {
+                        .map(|l| LogRequest {
+                            my_service_id: service_id.to_string().clone(),
                             level: LogLevel::INFO,
-                            log_line: l.to_string(),
-                            date_time: Local::now().to_string(),
+                            line_content: l.to_string(),
+                            created_at: Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
                         })
                         .collect();
 
                     println!("got here friend {:?}", v);
-                    self.logs = v;
+                    self.logs_in_file = v;
                 };
             }
             Err(error) => {
@@ -50,6 +68,7 @@ impl Logstore {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Directory {
     pub application_name: String,
+    pub service_id: Option<String>,
     pub files: Vec<PathBuf>,
 }
 
@@ -61,13 +80,12 @@ impl Directory {
             let path = entry.path();
 
             if path.is_file() {
-                if path.extension().and_then(|e| e.to_str()) == Some("log") {
-                    println!("Log file: {:?}", path);
-
-                    self.files.push(path);
+                if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                    if ext == "txt" || ext == "log" {
+                        println!("Log file: {:?}", path);
+                        self.files.push(path);
+                    }
                 }
-
-                // println!("Files in the directory location {:?}", store.logs);
             }
         }
 
@@ -75,27 +93,15 @@ impl Directory {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum LogLevel {
-    INFO,
-    ERROR,
-    DEBUG,
-    WARN,
-    TRACE,
-    OTHER,
-}
-
-#[derive(Debug)]
-pub struct Log {
-    pub level: LogLevel,
-    pub log_line: String,
-    pub date_time: String,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     pub application_name: String,
     pub log_location: String,
+    pub service_id: Option<String>, //id of the microservice in the database.
+}
+
+impl Config {
+    pub fn pass_service_id_2_config() {}
 }
 
 ///This would read the config file for application name and log location
@@ -141,6 +147,7 @@ mod tests {
             Ok(list) => {
                 if list.len() > 0 {
                     let mut dir: Directory = Directory {
+                        service_id: None,
                         application_name: list[0].application_name.clone(),
                         files: Vec::new(),
                     };
@@ -166,15 +173,15 @@ mod tests {
 
     #[test]
     fn test_read_file_logs() {
-        let mut store: Logstore = Logstore {
+        let mut store: ALogFile = ALogFile {
             application_name: String::from("webclient"),
-            logs: Vec::new(),
+            logs_in_file: Vec::new(),
         };
 
         let path: PathBuf = PathBuf::from("log.txt");
-        store.read_file_logs(&path);
+        store.read_file_logs("453452345235", &path);
 
-        let size: usize = store.logs.len();
+        let size: usize = store.logs_in_file.len();
 
         assert_eq!(size, 3);
     }

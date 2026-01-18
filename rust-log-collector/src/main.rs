@@ -1,71 +1,144 @@
-use rust_log_collector::{Config, Directory, Logstore};
-use std::fs::read_dir;
-use std::sync::Arc;
+use chrono::Utc;
+use dal_layer::models::my_service_model::MyService;
+use dal_layer::models::my_service_model::MyServiceView;
+use dal_layer::repository::db::Database;
+use rust_log_collector::{ALogFile, Config, Directory};
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use tokio;
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    ///Load the services stored in the database services from db
+    let services: Vec<MyServiceView> = getservices().await.unwrap();
+
+    /// Load config from json
     let filename: String = String::from("config.json");
 
-    let result = rust_log_collector::read_config(filename);
+    let mut configs: Vec<Config> = rust_log_collector::read_config(filename).unwrap();
 
-    match result {
-        Ok(list) => {
-            let dirCount: usize = list.len();
+    ///Pass the service id to each service in config and add the service that dont exits in db
+    let list: &Vec<Config> = tied_service_id_2_configs(&services, &mut configs).await;
 
-            println!("got here dir count {dirCount}");
+    ///read tru config (each represent a micro service and the log file directory)
+    ///
+    /// read thru the files
+    let dir_count: usize = list.len();
 
-            if dirCount > 0 {
-                //read_dir(&list[0].application_name, &list[0].log_location);
+    println!("got here dir count {dir_count}");
 
-                multiple_transmitter_receiver(dirCount, &list);
-            }
-        }
-        Err(error) => {
-            panic!("At this point {error}");
-        }
+    if dir_count > 0 {
+        //read_dir(&list[0].application_name, &list[0].log_location);
+
+        println!("configs to be worked on {:?}", list);
+
+        multiple_transmitter_receiver(dir_count, &list).await;
     }
 }
 
-pub fn multiple_transmitter_receiver(count: usize, list: &Vec<Config>) {
+pub async fn multiple_transmitter_receiver(count: usize, list: &Vec<Config>) {
     let (tx, rx) = mpsc::channel();
 
     for i in 0..count {
         // Clone the specific Config so the thread owns it
-        let cfg = list[i].clone();
+        let config = list[i].clone();
         let producer = tx.clone();
 
-        thread::spawn(move || {
-            let mut dir = Directory {
-                application_name: cfg.application_name.clone(),
-                files: Vec::new(),
-            };
+        thread::spawn(move || match config.service_id {
+            Some(id) => {
+                let mut dir = Directory {
+                    service_id: Some(id),
+                    application_name: config.application_name.clone(),
+                    files: Vec::new(),
+                };
 
-            dir.read_dir(&cfg.application_name, &cfg.log_location);
+                dir.read_dir(&config.application_name, &config.log_location);
 
-            producer.send(dir).unwrap();
+                println!("printing the files in the dir {:?}", dir.files);
+
+                producer.send(dir).unwrap(); //This is going to send a directory with list of files in it.
+            }
+            _ => {}
         });
     }
 
     drop(tx); // Close the original sender so rx will end after all clones drop
 
+    //reciever thread
     for dir in rx {
-        read_files_store_in_db(&dir);
+        read_files_store_in_db(&dir).await;
     }
 }
 
-fn read_files_store_in_db(dir: &Directory) {
-    let mut store: Logstore = Logstore {
+async fn read_files_store_in_db(dir: &Directory) {
+    let mut store: ALogFile = ALogFile {
         application_name: dir.application_name.to_string(),
-        logs: Vec::new(),
+        logs_in_file: Vec::new(),
     };
 
     for path in &dir.files {
-        store.read_file_logs(&path);
+        let id: &str = dir.service_id.as_ref().unwrap();
+
+        store.read_file_logs(&id, &path);
     }
 
     //store the values in the database
+    store.store_in_db().await;
+}
 
-    store.store_in_db();
+///This get the list of services
+async fn getservices() -> Result<Vec<MyServiceView>, Box<dyn std::error::Error>> {
+    //Result<Vec<MyServiceView>, Box<String>> {
+    let db = Database::init().await;
+
+    let list = db.get_services().await?;
+    // .map_err(|e| Box::new(Error::Database(e.to_string())) as Box<dyn Error>)?;
+
+    Ok(MyServiceView::from_bulk(list)?)
+}
+
+///This is going to connect the service id to each service in the config
+async fn tied_service_id_2_configs<'a>(
+    services: &'a Vec<MyServiceView>,
+    configs: &'a mut Vec<Config>,
+) -> &'a Vec<Config> {
+    //Result<Vec<MyServiceView>, Box<String>> {
+    let db = Database::init().await;
+
+    for c in configs.iter_mut() {
+        if let Some(service) = services.iter().find(|s| s.name == c.application_name) {
+            c.service_id = service.service_id.clone(); // or *service.id if Copy
+        } else {
+            //save the service and extract the id
+
+            let model: MyServiceView = MyServiceView {
+                service_id: None,
+                name: c.application_name.clone(),
+                description: Some(String::from("Micro service applciation")),
+                onboarded_datetime: Some(Utc::now().to_rfc3339()),
+            };
+
+            match db
+                .create_service(
+                    MyService::try_from(model)
+                        .expect("Error converting Service request to Serviice entity."),
+                )
+                .await
+            {
+                Ok(service) => {
+                    println!("verify the content {:?}", service);
+
+                    match service.inserted_id.as_str() {
+                        Some(id) => {
+                            c.service_id = Some(id.to_string());
+                        }
+                        None => {}
+                    }
+                }
+                Err(err) => println!("{}", err.to_string()),
+            };
+        }
+    }
+
+    configs
 }

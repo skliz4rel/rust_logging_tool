@@ -1,18 +1,20 @@
-use crate::{
-    models::my_service_model::{MyService, MyServiceView},
-    services::db::Database,
-};
 use actix_web::{
     Error, HttpResponse,
     web::{Data, Json},
 };
 use actix_web::{get, post};
 
+use dal_layer::{
+    models::my_service_model::{MyService, MyServiceView},
+    repository::db::Database,
+};
+
 #[post("/service")]
 pub async fn create_service(db: Data<Database>, request: Json<MyServiceView>) -> HttpResponse {
     match db
         .create_service(
             MyService::try_from(MyServiceView {
+                service_id: None,
                 name: request.name.clone(),
                 description: request.description.clone(),
                 onboarded_datetime: request.onboarded_datetime.clone(),

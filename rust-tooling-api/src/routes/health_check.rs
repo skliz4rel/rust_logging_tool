@@ -1,6 +1,6 @@
 use actix_web::{HttpResponse, Responder, get};
 
-use crate::models::response_model::GenericResponse;
+use dal_layer::models::response_model::GenericResponse;
 
 #[get("/health_check")]
 pub async fn health_check() -> impl Responder {

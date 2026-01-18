@@ -41,6 +41,12 @@ impl TryFrom<LogRequest> for Log {
     }
 }
 
+impl Log {
+    pub fn from_bulk(items: Vec<LogRequest>) -> Result<Vec<Self>, Box<dyn std::error::Error>> {
+        items.into_iter().map(Self::try_from).collect()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct LogRequest {
     pub level: LogLevel,
